@@ -1,3 +1,4 @@
+// src/app/api/documents/[id]/download/route.js
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -6,35 +7,53 @@ import { getPresignedDownloadUrl } from "@/lib/r2";
 export async function GET(request, { params }) {
   try {
     const session = await auth();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    const { id } = await params;
+    // In Next.js 15+, params is a Promise
+    const resolvedParams = await params;
+    const { id } = resolvedParams;
 
-    const doc = await prisma.document.findUnique({
+    // Check if document exists in Document table
+    let document = await prisma.document.findUnique({
       where: { id },
-      include: {
-        referral: true,
-      },
     });
 
-    if (!doc) return NextResponse.json({ error: "Document not found" }, { status: 404 });
+    // If not found in Document, check InvestigationReport table
+    if (!document) {
+      const invReport = await prisma.investigationReport.findUnique({
+        where: { id },
+      });
 
-    // Isolation check
-    if (session.user.role === "HOSPITAL_ADMIN") {
-      if (doc.referral && doc.referral.hospitalId !== session.user.hospitalId) {
-        return NextResponse.json({ error: "Access Denied: Document belongs to another hospital" }, { status: 403 });
+      if (invReport) {
+        document = {
+          fileKey: invReport.fileKey || invReport.fileUrl?.split("/").pop(),
+          fileName: invReport.fileName || "investigation-report.pdf",
+          fileUrl: invReport.fileUrl,
+        };
       }
     }
 
-    // Generate temporary 10-minute signed URL
-    const signedUrl = await getPresignedDownloadUrl(doc.fileUrl);
+    if (!document) {
+      return NextResponse.json({ error: "Document not found" }, { status: 404 });
+    }
 
-    return NextResponse.json({
-      downloadUrl: signedUrl,
-      fileName: doc.fileName,
-      mimeType: doc.mimeType,
-    });
+    // If file is stored directly via public URL, redirect or return URL
+    if (document.fileUrl && !document.fileKey) {
+      return NextResponse.redirect(document.fileUrl);
+    }
+
+    // Generate fresh presigned download URL
+    const fileKey = document.fileKey || document.fileUrl?.split("/").pop();
+    const downloadUrl = await getPresignedDownloadUrl(fileKey, 3600, document.fileName);
+
+    return NextResponse.json({ downloadUrl, fileName: document.fileName });
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Document download URL generation error:", error);
+    return NextResponse.json(
+      { error: "Failed to generate download link", details: error.message },
+      { status: 500 }
+    );
   }
 }

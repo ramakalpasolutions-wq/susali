@@ -1,46 +1,68 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+// src/lib/r2.js
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
 const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
 const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
-const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "susali-medical-docs";
+const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "susali-healthcare";
+const R2_PUBLIC_DOMAIN = process.env.R2_PUBLIC_DOMAIN || "";
 
 export const r2Client = new S3Client({
   region: "auto",
   endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
   credentials: {
-    accessKeyId: R2_ACCESS_KEY_ID || "mock-key",
-    secretAccessKey: R2_SECRET_ACCESS_KEY || "mock-secret",
+    accessKeyId: R2_ACCESS_KEY_ID || "",
+    secretAccessKey: R2_SECRET_ACCESS_KEY || "",
   },
 });
 
 /**
- * Generates a signed PUT URL for direct frontend client uploads
+ * Generate a presigned PUT URL for uploading a file directly to R2
  */
-export async function getUploadPresignedUrl(key, contentType) {
+export async function getUploadPresignedUrl(fileKey, contentType, expiresIn = 3600) {
   const command = new PutObjectCommand({
     Bucket: R2_BUCKET_NAME,
-    Key: key,
+    Key: fileKey,
     ContentType: contentType,
   });
 
-  // Valid for 15 minutes
-  return await getSignedUrl(r2Client, command, { expiresIn: 900 });
+  const uploadUrl = await getSignedUrl(r2Client, command, { expiresIn });
+  const publicUrl = R2_PUBLIC_DOMAIN 
+    ? `${R2_PUBLIC_DOMAIN.replace(/\/$/, "")}/${fileKey}`
+    : uploadUrl.split("?")[0];
+
+  return { uploadUrl, publicUrl, fileKey };
 }
 
 /**
- * Generates a signed GET URL for secure private document viewing/download
+ * Generate a presigned GET URL for downloading or viewing a private file from R2
  */
-export async function getDownloadPresignedUrl(key, originalFileName = null) {
-  const command = new GetObjectCommand({
+export async function getDownloadPresignedUrl(fileKey, expiresIn = 3600, fileName = null) {
+  const commandInput = {
     Bucket: R2_BUCKET_NAME,
-    Key: key,
-    ResponseContentDisposition: originalFileName
-      ? `inline; filename="${originalFileName}"`
-      : "inline",
-  });
+    Key: fileKey,
+  };
 
-  // Valid for 1 hour
-  return await getSignedUrl(r2Client, command, { expiresIn: 3600 });
+  if (fileName) {
+    commandInput.ResponseContentDisposition = `attachment; filename="${fileName}"`;
+  }
+
+  const command = new GetObjectCommand(commandInput);
+  return await getSignedUrl(r2Client, command, { expiresIn });
 }
+
+/**
+ * Delete an object from R2
+ */
+export async function deleteFileFromR2(fileKey) {
+  const command = new DeleteObjectCommand({
+    Bucket: R2_BUCKET_NAME,
+    Key: fileKey,
+  });
+  return await r2Client.send(command);
+}
+
+// Aliases to support both naming styles across the codebase
+export const getPresignedUploadUrl = getUploadPresignedUrl;
+export const getPresignedDownloadUrl = getDownloadPresignedUrl;

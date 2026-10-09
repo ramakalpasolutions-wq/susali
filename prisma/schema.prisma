@@ -1,0 +1,610 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────────────────────────
+// ENUMS
+// ──────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  SUDO_ADMIN
+  SUPPORT
+  AREA_MANAGER
+  HOSPITAL
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum AppointmentStatus {
+  REQUESTED
+  CONFIRMED
+  RESCHEDULED
+  CANCELLED
+  PATIENT_ARRIVED
+  COMPLETED
+  NO_SHOW
+}
+
+enum ReferralStatus {
+  REFERRAL_CREATED
+  PATIENT_PROFILE_PENDING
+  PATIENT_VERIFIED
+  HOSPITAL_ASSIGNMENT_PENDING
+  HOSPITAL_ASSIGNED
+  APPOINTMENT_PENDING
+  APPOINTMENT_SCHEDULED
+  PATIENT_EXPECTED
+  PATIENT_ARRIVED
+  DOCTOR_CONSULTATION
+  INVESTIGATION_RECOMMENDED
+  INVESTIGATION_IN_PROGRESS
+  REPORT_PENDING
+  DOCTOR_REVIEW_PENDING
+  UNDER_TREATMENT
+  FINAL_PRESCRIPTION_PENDING
+  FINAL_PRESCRIPTION_UPLOADED
+  FOLLOWUP_SCHEDULED
+  FOLLOWUP_DUE
+  FOLLOWUP_IN_PROGRESS
+  TREATMENT_COMPLETED
+  CASE_CLOSED
+}
+
+enum InvestigationStatus {
+  RECOMMENDED
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  REPORT_PENDING
+  REPORT_UPLOADED
+  DOCTOR_REVIEWED
+}
+
+enum PrescriptionType {
+  INITIAL
+  INTERIM
+  FINAL
+  FOLLOWUP
+}
+
+enum NotificationType {
+  INFO
+  WARNING
+  URGENT
+  SUCCESS
+}
+
+// ──────────────────────────────────────────────
+// ORGANIZATION
+// ──────────────────────────────────────────────
+
+model Area {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String   @unique
+  code      String   @unique
+  state     String?
+  district  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users        User[]
+  patients     Patient[]
+
+  @@map("areas")
+}
+
+model Hospital {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  code      String   @unique
+  address   String?
+  city      String?
+  state     String?
+  pinCode   String?
+  phone     String?
+  email     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  departments HospitalDepartment[]
+  doctors     Doctor[]
+  users       User[]
+  referrals   Referral[]
+  visits      HospitalVisit[]
+
+  @@map("hospitals")
+}
+
+model HospitalDepartment {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  name       String
+  hospitalId String   @db.ObjectId
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  hospital    Hospital     @relation(fields: [hospitalId], references: [id])
+  doctors     Doctor[]
+  referrals   Referral[]
+  appointments Appointment[]
+
+  @@unique([hospitalId, name])
+  @@map("hospital_departments")
+}
+
+model Doctor {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  specialization String?
+  phone          String?
+  email          String?
+  hospitalId     String   @db.ObjectId
+  departmentId   String?  @db.ObjectId
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  hospital      Hospital            @relation(fields: [hospitalId], references: [id])
+  department    HospitalDepartment? @relation(fields: [departmentId], references: [id])
+  consultations Consultation[]
+  investigations Investigation[]
+  prescriptions  Prescription[]
+
+  @@map("doctors")
+}
+
+// ──────────────────────────────────────────────
+// USERS & AUTH
+// ──────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  email        String   @unique
+  password     String
+  phone        String?
+  role         UserRole
+  areaId       String?  @db.ObjectId
+  hospitalId   String?  @db.ObjectId
+  isActive     Boolean  @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  area       Area?       @relation(fields: [areaId], references: [id])
+  hospital   Hospital?   @relation(fields: [hospitalId], references: [id])
+
+  referralsCreated  Referral[]   @relation("ReferralCreatedBy")
+  referralsAssigned Referral[]   @relation("ReferralAssignedTo")
+  appointments      Appointment[]
+  activityLogs      ActivityLog[]
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+
+  @@map("users")
+}
+
+// ──────────────────────────────────────────────
+// PATIENT
+// ──────────────────────────────────────────────
+
+model Patient {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  patientId        String   @unique  // PAT-2026-000001
+  fullName         String
+  dateOfBirth      DateTime?
+  age              Int?
+  gender           Gender?
+  mobile           String?
+  alternateMobile  String?
+  address          String?
+  village          String?
+  mandal           String?
+  district         String?
+  state            String?
+  pinCode          String?
+  beneficiaryId    String?  // Identity/beneficiary number
+  areaId           String?  @db.ObjectId
+  emergencyContact String?
+  emergencyRelation String?
+  emergencyMobile  String?
+  createdByUserId  String?  @db.ObjectId
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  area       Area?       @relation(fields: [areaId], references: [id])
+
+  referrals      Referral[]
+  documents      Document[]
+  activityLogs   ActivityLog[]
+
+  @@index([mobile])
+  @@index([beneficiaryId])
+  @@index([fullName])
+  @@map("patients")
+}
+
+// ──────────────────────────────────────────────
+// REFERRAL / CASE
+// ──────────────────────────────────────────────
+
+model Referral {
+  id              String         @id @default(auto()) @map("_id") @db.ObjectId
+  referralId      String         @unique  // REF-2026-000501
+  patientId       String         @db.ObjectId
+  hospitalId      String         @db.ObjectId
+  departmentId    String?        @db.ObjectId
+  createdById     String         @db.ObjectId
+  assignedToId    String?        @db.ObjectId  // Area Manager
+  status          ReferralStatus @default(REFERRAL_CREATED)
+  priority        Priority       @default(NORMAL)
+  reason          String?
+  notes           String?
+  referredAt      DateTime       @default(now())
+  appointmentDate DateTime?
+  completedAt     DateTime?
+  closedAt        DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  patient    Patient             @relation(fields: [patientId], references: [id])
+  hospital   Hospital            @relation(fields: [hospitalId], references: [id])
+  department HospitalDepartment? @relation(fields: [departmentId], references: [id])
+  createdBy  User                @relation("ReferralCreatedBy", fields: [createdById], references: [id])
+  assignedTo User?               @relation("ReferralAssignedTo", fields: [assignedToId], references: [id])
+
+  appointments   Appointment[]
+  visits         HospitalVisit[]
+  followUps      FollowUp[]
+  documents      Document[]
+  activityLogs   ActivityLog[]
+
+  @@index([patientId])
+  @@index([hospitalId])
+  @@index([assignedToId])
+  @@index([status])
+  @@map("referrals")
+}
+
+// ──────────────────────────────────────────────
+// APPOINTMENT
+// ──────────────────────────────────────────────
+
+model Appointment {
+  id           String            @id @default(auto()) @map("_id") @db.ObjectId
+  referralId   String            @db.ObjectId
+  hospitalId   String?           @db.ObjectId
+  departmentId String?           @db.ObjectId
+  doctorId     String?           @db.ObjectId
+  patientId    String?           @db.ObjectId
+  appointmentDate DateTime
+  appointmentTime String?
+  status       AppointmentStatus @default(REQUESTED)
+  notes        String?
+  createdById  String?           @db.ObjectId
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  referral   Referral            @relation(fields: [referralId], references: [id])
+  department HospitalDepartment? @relation(fields: [departmentId], references: [id])
+  createdBy  User?               @relation(fields: [createdById], references: [id])
+
+  history AppointmentHistory[]
+
+  @@index([referralId])
+  @@index([appointmentDate])
+  @@index([status])
+  @@map("appointments")
+}
+
+model AppointmentHistory {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  appointmentId String   @db.ObjectId
+  oldDate       DateTime?
+  oldTime       String?
+  newDate       DateTime?
+  newTime       String?
+  oldStatus     String?
+  newStatus     String?
+  reason        String?
+  changedById   String?  @db.ObjectId
+  changedAt     DateTime @default(now())
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id])
+
+  @@map("appointment_history")
+}
+
+// ──────────────────────────────────────────────
+// HOSPITAL VISIT
+// ──────────────────────────────────────────────
+
+model HospitalVisit {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  referralId  String    @db.ObjectId
+  hospitalId  String    @db.ObjectId
+  patientId   String?   @db.ObjectId
+  visitType   String    @default("INITIAL") // INITIAL, FOLLOWUP
+  checkedInAt DateTime?
+  checkedOutAt DateTime?
+  checkedInBy String?
+  status      String    @default("EXPECTED") // EXPECTED, CHECKED_IN, COMPLETED
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  referral Referral @relation(fields: [referralId], references: [id])
+  hospital Hospital @relation(fields: [hospitalId], references: [id])
+
+  consultations Consultation[]
+  documents     Document[]
+
+  @@index([referralId])
+  @@index([hospitalId])
+  @@map("hospital_visits")
+}
+
+// ──────────────────────────────────────────────
+// CONSULTATION
+// ──────────────────────────────────────────────
+
+model Consultation {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  visitId     String    @db.ObjectId
+  referralId  String?   @db.ObjectId
+  patientId   String?   @db.ObjectId
+  doctorId    String?   @db.ObjectId
+  department  String?
+  symptoms    String?
+  clinicalNotes String?
+  diagnosis   String?
+  doctorAdvice String?
+  investigationRequired Boolean @default(false)
+  prescriptionProvided  Boolean @default(false)
+  followUpRequired      Boolean @default(false)
+  startTime   DateTime?
+  endTime     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  visit HospitalVisit @relation(fields: [visitId], references: [id])
+  doctor Doctor?      @relation(fields: [doctorId], references: [id])
+
+  investigations Investigation[]
+  prescriptions  Prescription[]
+
+  @@index([visitId])
+  @@index([doctorId])
+  @@map("consultations")
+}
+
+// ──────────────────────────────────────────────
+// INVESTIGATION
+// ──────────────────────────────────────────────
+
+model Investigation {
+  id              String              @id @default(auto()) @map("_id") @db.ObjectId
+  investigationId String              @unique  // INV-2026-001254
+  consultationId  String              @db.ObjectId
+  referralId      String?             @db.ObjectId
+  patientId       String?             @db.ObjectId
+  doctorId        String?             @db.ObjectId
+  type            String              // LAB, SCAN, IMAGING, OTHER
+  name            String              // CBC, CT Scan, MRI, etc.
+  status          InvestigationStatus @default(RECOMMENDED)
+  requestedAt     DateTime            @default(now())
+  scheduledAt     DateTime?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  consultation Consultation @relation(fields: [consultationId], references: [id])
+  doctor       Doctor?      @relation(fields: [doctorId], references: [id])
+
+  reports InvestigationReport[]
+
+  @@index([consultationId])
+  @@index([status])
+  @@map("investigations")
+}
+
+model InvestigationReport {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  investigationId String    @db.ObjectId
+  patientId       String?   @db.ObjectId
+  referralId      String?   @db.ObjectId
+  reportType      String?
+  reportDate      DateTime?
+  fileUrl         String
+  fileName        String?
+  fileSize        Int?
+  mimeType        String?
+  remarks         String?
+  doctorReviewed  Boolean   @default(false)
+  reviewedById    String?   @db.ObjectId
+  reviewedAt      DateTime?
+  uploadedById    String?   @db.ObjectId
+  uploadedAt      DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  investigation Investigation @relation(fields: [investigationId], references: [id])
+
+  @@index([investigationId])
+  @@map("investigation_reports")
+}
+
+// ──────────────────────────────────────────────
+// PRESCRIPTION
+// ──────────────────────────────────────────────
+
+model Prescription {
+  id             String           @id @default(auto()) @map("_id") @db.ObjectId
+  consultationId String           @db.ObjectId
+  referralId     String?          @db.ObjectId
+  patientId      String?          @db.ObjectId
+  doctorId       String?          @db.ObjectId
+  hospitalId     String?          @db.ObjectId
+  type           PrescriptionType @default(INITIAL)
+  diagnosis      String?
+  notes          String?
+  fileUrl        String?
+  fileName       String?
+  uploadedById   String?          @db.ObjectId
+  uploadedAt     DateTime         @default(now())
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  consultation Consultation @relation(fields: [consultationId], references: [id])
+  doctor       Doctor?      @relation(fields: [doctorId], references: [id])
+
+  @@index([consultationId])
+  @@index([referralId])
+  @@map("prescriptions")
+}
+
+// ──────────────────────────────────────────────
+// FOLLOW-UP
+// ──────────────────────────────────────────────
+
+model FollowUp {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  referralId String    @db.ObjectId
+  patientId  String?   @db.ObjectId
+  hospitalId String?   @db.ObjectId
+  doctorId   String?   @db.ObjectId
+  followUpDate DateTime
+  followUpTime String?
+  reason     String?
+  instructions String?
+  status     String    @default("SCHEDULED") // SCHEDULED, DUE, COMPLETED, MISSED
+  completedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  referral Referral @relation(fields: [referralId], references: [id])
+
+  @@index([referralId])
+  @@index([followUpDate])
+  @@index([status])
+  @@map("follow_ups")
+}
+
+// ──────────────────────────────────────────────
+// DOCUMENTS
+// ──────────────────────────────────────────────
+
+model Document {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  patientId  String?   @db.ObjectId
+  referralId String?   @db.ObjectId
+  visitId    String?   @db.ObjectId
+  docType    String    // REFERRAL_LETTER, LAB_REPORT, SCAN_REPORT, PRESCRIPTION, DISCHARGE_SUMMARY, etc.
+  fileUrl    String
+  fileName   String?
+  fileSize   Int?
+  mimeType   String?
+  remarks    String?
+  uploadedById String? @db.ObjectId
+  uploadedAt DateTime  @default(now())
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  patient  Patient?      @relation(fields: [patientId], references: [id])
+  referral Referral?     @relation(fields: [referralId], references: [id])
+  visit    HospitalVisit? @relation(fields: [visitId], references: [id])
+
+  @@index([patientId])
+  @@index([referralId])
+  @@map("documents")
+}
+
+// ──────────────────────────────────────────────
+// NOTIFICATIONS
+// ──────────────────────────────────────────────
+
+model Notification {
+  id        String           @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String           @db.ObjectId
+  type      NotificationType @default(INFO)
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  link      String?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+// ──────────────────────────────────────────────
+// ACTIVITY LOG (Patient Timeline)
+// ──────────────────────────────────────────────
+
+model ActivityLog {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  patientId  String?   @db.ObjectId
+  referralId String?   @db.ObjectId
+  action     String    // "REFERRAL_CREATED", "CHECKED_IN", "REPORT_UPLOADED", etc.
+  description String?
+  userId     String?   @db.ObjectId
+  userName   String?
+  userRole   String?
+  metadata   Json?     // Flexible extra data
+  createdAt  DateTime  @default(now())
+
+  patient  Patient?  @relation(fields: [patientId], references: [id])
+  referral Referral? @relation(fields: [referralId], references: [id])
+  user     User?     @relation(fields: [userId], references: [id])
+
+  @@index([patientId, createdAt])
+  @@index([referralId, createdAt])
+  @@map("activity_logs")
+}
+
+// ──────────────────────────────────────────────
+// AUDIT LOG (System-wide changes)
+// ──────────────────────────────────────────────
+
+model AuditLog {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  action     String    // "APPOINTMENT_RESCHEDULED", "STATUS_CHANGED", etc.
+  entityType String    // "Appointment", "Referral", "Patient", etc.
+  entityId   String?
+  oldValue   Json?
+  newValue   Json?
+  reason     String?
+  userId     String?   @db.ObjectId
+  userName   String?
+  userRole   String?
+  ipAddress  String?
+  createdAt  DateTime  @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

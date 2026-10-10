@@ -1,3 +1,4 @@
+// src/lib/auth.js
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
@@ -51,6 +52,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           areaName: user.area?.name || null,
           hospitalId: user.hospitalId,
           hospitalName: user.hospital?.name || null,
+          patientId: user.patientId || null,
         };
       },
     }),
@@ -64,6 +66,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.areaName = user.areaName;
         token.hospitalId = user.hospitalId;
         token.hospitalName = user.hospitalName;
+        token.patientId = user.patientId;
       }
       return token;
     },
@@ -75,6 +78,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.areaName = token.areaName;
         session.user.hospitalId = token.hospitalId;
         session.user.hospitalName = token.hospitalName;
+        session.user.patientId = token.patientId;
       }
       return session;
     },

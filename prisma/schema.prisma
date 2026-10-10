@@ -1,3 +1,4 @@
+// prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
 }
@@ -17,6 +18,7 @@ enum UserRole {
   SUPPORT
   AREA_MANAGER
   HOSPITAL
+  PATIENT
 }
 
 enum Gender {
@@ -105,8 +107,8 @@ model Area {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users        User[]
-  patients     Patient[]
+  users    User[]
+  patients Patient[]
 
   @@map("areas")
 }
@@ -142,9 +144,9 @@ model HospitalDepartment {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  hospital    Hospital     @relation(fields: [hospitalId], references: [id])
-  doctors     Doctor[]
-  referrals   Referral[]
+  hospital     Hospital      @relation(fields: [hospitalId], references: [id])
+  doctors      Doctor[]
+  referrals    Referral[]
   appointments Appointment[]
 
   @@unique([hospitalId, name])
@@ -163,9 +165,9 @@ model Doctor {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  hospital      Hospital            @relation(fields: [hospitalId], references: [id])
-  department    HospitalDepartment? @relation(fields: [departmentId], references: [id])
-  consultations Consultation[]
+  hospital       Hospital            @relation(fields: [hospitalId], references: [id])
+  department     HospitalDepartment? @relation(fields: [departmentId], references: [id])
+  consultations  Consultation[]
   investigations Investigation[]
   prescriptions  Prescription[]
 
@@ -177,24 +179,26 @@ model Doctor {
 // ──────────────────────────────────────────────
 
 model User {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  name         String
-  email        String   @unique
-  password     String
-  phone        String?
-  role         UserRole
-  areaId       String?  @db.ObjectId
-  hospitalId   String?  @db.ObjectId
-  isActive     Boolean  @default(true)
-  lastLoginAt  DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  email       String    @unique
+  password    String
+  phone       String?
+  role        UserRole
+  areaId      String?   @db.ObjectId
+  hospitalId  String?   @db.ObjectId
+  patientId   String?   @db.ObjectId
+  isActive    Boolean   @default(true)
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  area       Area?       @relation(fields: [areaId], references: [id])
-  hospital   Hospital?   @relation(fields: [hospitalId], references: [id])
+  area     Area?     @relation(fields: [areaId], references: [id])
+  hospital Hospital? @relation(fields: [hospitalId], references: [id])
+  patient  Patient?  @relation(fields: [patientId], references: [id])
 
-  referralsCreated  Referral[]   @relation("ReferralCreatedBy")
-  referralsAssigned Referral[]   @relation("ReferralAssignedTo")
+  referralsCreated  Referral[]     @relation("ReferralCreatedBy")
+  referralsAssigned Referral[]     @relation("ReferralAssignedTo")
   appointments      Appointment[]
   activityLogs      ActivityLog[]
   auditLogs         AuditLog[]
@@ -208,34 +212,36 @@ model User {
 // ──────────────────────────────────────────────
 
 model Patient {
-  id               String   @id @default(auto()) @map("_id") @db.ObjectId
-  patientId        String   @unique  // PAT-2026-000001
-  fullName         String
-  dateOfBirth      DateTime?
-  age              Int?
-  gender           Gender?
-  mobile           String?
-  alternateMobile  String?
-  address          String?
-  village          String?
-  mandal           String?
-  district         String?
-  state            String?
-  pinCode          String?
-  beneficiaryId    String?  // Identity/beneficiary number
-  areaId           String?  @db.ObjectId
-  emergencyContact String?
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  patientId         String    @unique // PAT-2026-000001
+  fullName          String
+  dateOfBirth       DateTime?
+  age               Int?
+  gender            Gender?
+  mobile            String?
+  alternateMobile   String?
+  address           String?
+  village           String?
+  mandal            String?
+  district          String?
+  state             String?
+  pinCode           String?
+  beneficiaryId     String? // Identity/beneficiary number / ID Card
+  idCardNumber      String? // Optional; create partial unique index manually
+  areaId            String?   @db.ObjectId
+  emergencyContact  String?
   emergencyRelation String?
-  emergencyMobile  String?
-  createdByUserId  String?  @db.ObjectId
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  emergencyMobile   String?
+  createdByUserId   String?   @db.ObjectId
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  area       Area?       @relation(fields: [areaId], references: [id])
+  area         Area?  @relation(fields: [areaId], references: [id])
+  userAccounts User[] // Optional accounts linked to this patient
 
-  referrals      Referral[]
-  documents      Document[]
-  activityLogs   ActivityLog[]
+  referrals    Referral[]
+  documents    Document[]
+  activityLogs ActivityLog[]
 
   @@index([mobile])
   @@index([beneficiaryId])
@@ -249,12 +255,13 @@ model Patient {
 
 model Referral {
   id              String         @id @default(auto()) @map("_id") @db.ObjectId
-  referralId      String         @unique  // REF-2026-000501
+  referralId      String         @unique // REF-2026-000501
+  referralCode    String? // Optional; create partial unique index manually
   patientId       String         @db.ObjectId
-  hospitalId      String         @db.ObjectId
+  hospitalId      String?        @db.ObjectId // Changed to optional to allow patient selection later
   departmentId    String?        @db.ObjectId
   createdById     String         @db.ObjectId
-  assignedToId    String?        @db.ObjectId  // Area Manager
+  assignedToId    String?        @db.ObjectId // Area Manager
   status          ReferralStatus @default(REFERRAL_CREATED)
   priority        Priority       @default(NORMAL)
   reason          String?
@@ -267,16 +274,16 @@ model Referral {
   updatedAt       DateTime       @updatedAt
 
   patient    Patient             @relation(fields: [patientId], references: [id])
-  hospital   Hospital            @relation(fields: [hospitalId], references: [id])
+  hospital   Hospital?           @relation(fields: [hospitalId], references: [id])
   department HospitalDepartment? @relation(fields: [departmentId], references: [id])
   createdBy  User                @relation("ReferralCreatedBy", fields: [createdById], references: [id])
   assignedTo User?               @relation("ReferralAssignedTo", fields: [assignedToId], references: [id])
 
-  appointments   Appointment[]
-  visits         HospitalVisit[]
-  followUps      FollowUp[]
-  documents      Document[]
-  activityLogs   ActivityLog[]
+  appointments Appointment[]
+  visits       HospitalVisit[]
+  followUps    FollowUp[]
+  documents    Document[]
+  activityLogs ActivityLog[]
 
   @@index([patientId])
   @@index([hospitalId])
@@ -290,19 +297,19 @@ model Referral {
 // ──────────────────────────────────────────────
 
 model Appointment {
-  id           String            @id @default(auto()) @map("_id") @db.ObjectId
-  referralId   String            @db.ObjectId
-  hospitalId   String?           @db.ObjectId
-  departmentId String?           @db.ObjectId
-  doctorId     String?           @db.ObjectId
-  patientId    String?           @db.ObjectId
+  id              String            @id @default(auto()) @map("_id") @db.ObjectId
+  referralId      String            @db.ObjectId
+  hospitalId      String?           @db.ObjectId
+  departmentId    String?           @db.ObjectId
+  doctorId        String?           @db.ObjectId
+  patientId       String?           @db.ObjectId
   appointmentDate DateTime
   appointmentTime String?
-  status       AppointmentStatus @default(REQUESTED)
-  notes        String?
-  createdById  String?           @db.ObjectId
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  status          AppointmentStatus @default(REQUESTED)
+  notes           String?
+  createdById     String?           @db.ObjectId
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 
   referral   Referral            @relation(fields: [referralId], references: [id])
   department HospitalDepartment? @relation(fields: [departmentId], references: [id])
@@ -317,8 +324,8 @@ model Appointment {
 }
 
 model AppointmentHistory {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  appointmentId String   @db.ObjectId
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  appointmentId String    @db.ObjectId
   oldDate       DateTime?
   oldTime       String?
   newDate       DateTime?
@@ -326,8 +333,8 @@ model AppointmentHistory {
   oldStatus     String?
   newStatus     String?
   reason        String?
-  changedById   String?  @db.ObjectId
-  changedAt     DateTime @default(now())
+  changedById   String?   @db.ObjectId
+  changedAt     DateTime  @default(now())
 
   appointment Appointment @relation(fields: [appointmentId], references: [id])
 
@@ -339,17 +346,17 @@ model AppointmentHistory {
 // ──────────────────────────────────────────────
 
 model HospitalVisit {
-  id          String    @id @default(auto()) @map("_id") @db.ObjectId
-  referralId  String    @db.ObjectId
-  hospitalId  String    @db.ObjectId
-  patientId   String?   @db.ObjectId
-  visitType   String    @default("INITIAL") // INITIAL, FOLLOWUP
-  checkedInAt DateTime?
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  referralId   String    @db.ObjectId
+  hospitalId   String    @db.ObjectId
+  patientId    String?   @db.ObjectId
+  visitType    String    @default("INITIAL") // INITIAL, FOLLOWUP
+  checkedInAt  DateTime?
   checkedOutAt DateTime?
-  checkedInBy String?
-  status      String    @default("EXPECTED") // EXPECTED, CHECKED_IN, COMPLETED
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  checkedInBy  String?
+  status       String    @default("EXPECTED") // EXPECTED, CHECKED_IN, COMPLETED
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   referral Referral @relation(fields: [referralId], references: [id])
   hospital Hospital @relation(fields: [hospitalId], references: [id])
@@ -367,26 +374,26 @@ model HospitalVisit {
 // ──────────────────────────────────────────────
 
 model Consultation {
-  id          String    @id @default(auto()) @map("_id") @db.ObjectId
-  visitId     String    @db.ObjectId
-  referralId  String?   @db.ObjectId
-  patientId   String?   @db.ObjectId
-  doctorId    String?   @db.ObjectId
-  department  String?
-  symptoms    String?
-  clinicalNotes String?
-  diagnosis   String?
-  doctorAdvice String?
-  investigationRequired Boolean @default(false)
-  prescriptionProvided  Boolean @default(false)
-  followUpRequired      Boolean @default(false)
-  startTime   DateTime?
-  endTime     DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                    String    @id @default(auto()) @map("_id") @db.ObjectId
+  visitId               String    @db.ObjectId
+  referralId            String?   @db.ObjectId
+  patientId             String?   @db.ObjectId
+  doctorId              String?   @db.ObjectId
+  department            String?
+  symptoms              String?
+  clinicalNotes         String?
+  diagnosis             String?
+  doctorAdvice          String?
+  investigationRequired Boolean   @default(false)
+  prescriptionProvided  Boolean   @default(false)
+  followUpRequired      Boolean   @default(false)
+  startTime             DateTime?
+  endTime               DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  visit HospitalVisit @relation(fields: [visitId], references: [id])
-  doctor Doctor?      @relation(fields: [doctorId], references: [id])
+  visit  HospitalVisit @relation(fields: [visitId], references: [id])
+  doctor Doctor?       @relation(fields: [doctorId], references: [id])
 
   investigations Investigation[]
   prescriptions  Prescription[]
@@ -402,13 +409,13 @@ model Consultation {
 
 model Investigation {
   id              String              @id @default(auto()) @map("_id") @db.ObjectId
-  investigationId String              @unique  // INV-2026-001254
+  investigationId String              @unique // INV-2026-001254
   consultationId  String              @db.ObjectId
   referralId      String?             @db.ObjectId
   patientId       String?             @db.ObjectId
   doctorId        String?             @db.ObjectId
-  type            String              // LAB, SCAN, IMAGING, OTHER
-  name            String              // CBC, CT Scan, MRI, etc.
+  type            String // LAB, SCAN, IMAGING, OTHER
+  name            String // CBC, CT Scan, MRI, etc.
   status          InvestigationStatus @default(RECOMMENDED)
   requestedAt     DateTime            @default(now())
   scheduledAt     DateTime?
@@ -487,19 +494,19 @@ model Prescription {
 // ──────────────────────────────────────────────
 
 model FollowUp {
-  id         String    @id @default(auto()) @map("_id") @db.ObjectId
-  referralId String    @db.ObjectId
-  patientId  String?   @db.ObjectId
-  hospitalId String?   @db.ObjectId
-  doctorId   String?   @db.ObjectId
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  referralId   String    @db.ObjectId
+  patientId    String?   @db.ObjectId
+  hospitalId   String?   @db.ObjectId
+  doctorId     String?   @db.ObjectId
   followUpDate DateTime
   followUpTime String?
-  reason     String?
+  reason       String?
   instructions String?
-  status     String    @default("SCHEDULED") // SCHEDULED, DUE, COMPLETED, MISSED
-  completedAt DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  status       String    @default("SCHEDULED") // SCHEDULED, DUE, COMPLETED, MISSED
+  completedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   referral Referral @relation(fields: [referralId], references: [id])
 
@@ -514,23 +521,23 @@ model FollowUp {
 // ──────────────────────────────────────────────
 
 model Document {
-  id         String    @id @default(auto()) @map("_id") @db.ObjectId
-  patientId  String?   @db.ObjectId
-  referralId String?   @db.ObjectId
-  visitId    String?   @db.ObjectId
-  docType    String    // REFERRAL_LETTER, LAB_REPORT, SCAN_REPORT, PRESCRIPTION, DISCHARGE_SUMMARY, etc.
-  fileUrl    String
-  fileName   String?
-  fileSize   Int?
-  mimeType   String?
-  remarks    String?
-  uploadedById String? @db.ObjectId
-  uploadedAt DateTime  @default(now())
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  patientId    String?  @db.ObjectId
+  referralId   String?  @db.ObjectId
+  visitId      String?  @db.ObjectId
+  docType      String // REFERRAL_LETTER, LAB_REPORT, SCAN_REPORT, PRESCRIPTION, DISCHARGE_SUMMARY, etc.
+  fileUrl      String
+  fileName     String?
+  fileSize     Int?
+  mimeType     String?
+  remarks      String?
+  uploadedById String?  @db.ObjectId
+  uploadedAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  patient  Patient?      @relation(fields: [patientId], references: [id])
-  referral Referral?     @relation(fields: [referralId], references: [id])
+  patient  Patient?       @relation(fields: [patientId], references: [id])
+  referral Referral?      @relation(fields: [referralId], references: [id])
   visit    HospitalVisit? @relation(fields: [visitId], references: [id])
 
   @@index([patientId])
@@ -563,16 +570,16 @@ model Notification {
 // ──────────────────────────────────────────────
 
 model ActivityLog {
-  id         String    @id @default(auto()) @map("_id") @db.ObjectId
-  patientId  String?   @db.ObjectId
-  referralId String?   @db.ObjectId
-  action     String    // "REFERRAL_CREATED", "CHECKED_IN", "REPORT_UPLOADED", etc.
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  patientId   String?  @db.ObjectId
+  referralId  String?  @db.ObjectId
+  action      String // "REFERRAL_CREATED", "CHECKED_IN", "REPORT_UPLOADED", etc.
   description String?
-  userId     String?   @db.ObjectId
-  userName   String?
-  userRole   String?
-  metadata   Json?     // Flexible extra data
-  createdAt  DateTime  @default(now())
+  userId      String?  @db.ObjectId
+  userName    String?
+  userRole    String?
+  metadata    Json? // Flexible extra data
+  createdAt   DateTime @default(now())
 
   patient  Patient?  @relation(fields: [patientId], references: [id])
   referral Referral? @relation(fields: [referralId], references: [id])
@@ -588,18 +595,18 @@ model ActivityLog {
 // ──────────────────────────────────────────────
 
 model AuditLog {
-  id         String    @id @default(auto()) @map("_id") @db.ObjectId
-  action     String    // "APPOINTMENT_RESCHEDULED", "STATUS_CHANGED", etc.
-  entityType String    // "Appointment", "Referral", "Patient", etc.
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  action     String // "APPOINTMENT_RESCHEDULED", "STATUS_CHANGED", etc.
+  entityType String // "Appointment", "Referral", "Patient", etc.
   entityId   String?
   oldValue   Json?
   newValue   Json?
   reason     String?
-  userId     String?   @db.ObjectId
+  userId     String?  @db.ObjectId
   userName   String?
   userRole   String?
   ipAddress  String?
-  createdAt  DateTime  @default(now())
+  createdAt  DateTime @default(now())
 
   user User? @relation(fields: [userId], references: [id])
 

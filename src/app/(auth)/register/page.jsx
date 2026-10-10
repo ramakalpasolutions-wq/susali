@@ -47,11 +47,11 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4 py-12">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 to-emerald-100 px-4 py-12">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border border-teal-50">
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Patient Registration</h1>
-          <p className="text-gray-500 text-sm mt-1">Create your SUSALI profile</p>
+          <p className="text-teal-700 text-sm mt-1">Create your SUSALI profile</p>
         </div>
 
         {error && (
@@ -61,7 +61,7 @@ export default function RegisterPage() {
         )}
 
         {success && (
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm text-center">
+          <div className="mb-4 p-3 bg-teal-50 border border-teal-200 text-teal-800 rounded-lg text-sm text-center font-medium animate-pulse">
             Registration successful! Redirecting to login...
           </div>
         )}
@@ -72,7 +72,7 @@ export default function RegisterPage() {
             <input
               type="text"
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-teal-500 outline-none"
               placeholder="John Doe"
               value={form.fullName}
               onChange={(e) => setForm({ ...form, fullName: e.target.value })}
@@ -84,7 +84,7 @@ export default function RegisterPage() {
             <input
               type="text"
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-teal-500 outline-none"
               placeholder="ID-12345"
               value={form.idCardNumber}
               onChange={(e) => setForm({ ...form, idCardNumber: e.target.value })}
@@ -96,7 +96,7 @@ export default function RegisterPage() {
             <input
               type="tel"
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-teal-500 outline-none"
               placeholder="9876543210"
               value={form.phone}
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
@@ -107,7 +107,7 @@ export default function RegisterPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Email Address (Optional)</label>
             <input
               type="email"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-teal-500 outline-none"
               placeholder="john@example.com"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -119,7 +119,7 @@ export default function RegisterPage() {
             <input
               type="password"
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-teal-500 outline-none"
               placeholder="••••••••"
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
@@ -129,7 +129,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition disabled:opacity-50"
+            className="w-full py-2.5 bg-teal-600 text-white font-semibold rounded-lg hover:bg-teal-700 transition disabled:opacity-50 shadow-sm"
           >
             {loading ? "Registering..." : "Create Account"}
           </button>
@@ -137,7 +137,7 @@ export default function RegisterPage() {
 
         <div className="mt-4 text-center text-sm text-gray-600">
           Already registered?{" "}
-          <Link href="/login" className="text-indigo-600 hover:underline">
+          <Link href="/login" className="text-teal-600 font-semibold hover:underline">
             Sign In
           </Link>
         </div>

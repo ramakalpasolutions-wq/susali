@@ -1,13 +1,5 @@
-// src/app/page.jsx
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import CompanyPage from './company/page';
 
-export default async function RootPage() {
-  const session = await auth();
-
-  if (!session) {
-    redirect("/login");
-  }
-
-  redirect("/dashboard");
+export default function HomePage() {
+  return <CompanyPage />;
 }

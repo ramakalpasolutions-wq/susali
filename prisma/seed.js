@@ -288,7 +288,7 @@ async function main() {
   console.log("HOSPITAL     │ hospital.apollo@susali.in      │ password123");
   console.log("HOSPITAL     │ hospital.yashoda@susali.in     │ password123");
   console.log("PATIENT      │ 9848012345@patient.susali.in   │ patient123");
-  console.log("PATIENT      │ 9876543210@patient.susali.in   │ patient123");
+  console.log("PATIENT      │987654321 0@patient.susali.in   │ patient123");
   console.log("PATIENT      │ 9440122334@patient.susali.in   │ patient123");
   console.log("──────────────────────────────────────────────────────");
   console.log("Patient Referral Code: RXJK2026A\n");

@@ -4,10 +4,6 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import bcrypt from "bcryptjs";
 
-function generateReferralCode() {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
-}
-
 export async function POST(request) {
   try {
     const session = await auth();
@@ -15,10 +11,21 @@ export async function POST(request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { fullName, phone, email, idCardNumber, password, areaId, hospitalId, departmentId, reason } = await request.json();
+    const {
+      fullName,
+      phone,
+      email,
+      idCardNumber,
+      password,
+      areaId,
+      offlineReferralCode,
+      hospitalId,
+      departmentId,
+      reason,
+    } = await request.json();
 
     if (!fullName || !phone || !idCardNumber || !password) {
-      return NextResponse.json({ error: "Required fields missing" }, { status: 400 });
+      return NextResponse.json({ error: "Full Name, Phone, ID Card, and Password are required" }, { status: 400 });
     }
 
     const cleanedEmail = email?.trim().toLowerCase() || `${phone}@patient.susali.in`;
@@ -27,7 +34,7 @@ export async function POST(request) {
       where: { email: cleanedEmail },
     });
     if (existingUser) {
-      return NextResponse.json({ error: "Email or phone number already in use" }, { status: 400 });
+      return NextResponse.json({ error: "Email or phone number is already registered" }, { status: 400 });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -37,7 +44,7 @@ export async function POST(request) {
 
     const referralCount = await prisma.referral.count();
     const referralId = `REF-${year}-${String(referralCount + 1).padStart(6, "0")}`;
-    const referralCode = generateReferralCode();
+    const finalReferralCode = offlineReferralCode?.trim()?.toUpperCase() || `REF-OFFLINE-${Date.now().toString().slice(-6)}`;
 
     const result = await prisma.$transaction(async (tx) => {
       const patient = await tx.patient.create({
@@ -66,13 +73,13 @@ export async function POST(request) {
       const referral = await tx.referral.create({
         data: {
           referralId,
-          referralCode,
+          referralCode: finalReferralCode,
           patientId: patient.id,
           hospitalId: hospitalId || null,
           departmentId: departmentId || null,
           createdById: session.user.id,
           status: hospitalId ? "HOSPITAL_ASSIGNED" : "REFERRAL_CREATED",
-          reason: reason || "Standard Referral Intake",
+          reason: reason || "Offline Superintendent Referral Intake",
         },
       });
 
@@ -81,19 +88,19 @@ export async function POST(request) {
           patientId: patient.id,
           referralId: referral.id,
           action: "REFERRAL_CREATED",
-          description: `Patient and referral created by staff. Referral Lookup Code: ${referralCode}`,
+          description: `Patient registered with offline referral code [${finalReferralCode}].`,
           userId: session.user.id,
           userName: session.user.name,
           userRole: session.user.role,
         },
       });
 
-      return { patientId, referralId, referralCode };
+      return { patientId, referralId, referralCode: finalReferralCode };
     });
 
     return NextResponse.json({ success: true, ...result, loginEmail: cleanedEmail });
   } catch (error) {
-    console.error("Intake error:", error);
+    console.error("Staff intake error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
